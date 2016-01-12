@@ -1,0 +1,29 @@
+body {
+}
+
+.reveal {
+}
+
+.reveal h1 {
+    font-size: 150%;
+}
+
+.reveal h2 {
+    font-size: 130%;
+}
+
+.reveal p {
+    font-size: 19pt;
+    color:green;
+}
+.reveal ul, ol {
+    font-size: 19pt;
+    color:black;
+}
+div.output_area pre {
+}
+div.output_stderr {
+background: #F00;
+}
+.reveal table th, .reveal table td {
+}
