@@ -14,7 +14,6 @@ body {
 
 .reveal p {
     font-size: 19pt;
-    color:green;
 }
 .reveal ul, ol {
     font-size: 19pt;
@@ -26,4 +25,11 @@ div.output_stderr {
 background: #F00;
 }
 .reveal table th, .reveal table td {
+}
+
+div.exercize {    
+    background-color: #fcf2f2;
+    border-color: #dFb5b4;
+    border-left: 5px solid #dfb5b4;
+    padding: 0.5em;
 }
