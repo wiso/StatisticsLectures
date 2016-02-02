@@ -2,3 +2,9 @@
 Material for statistics lectures for physicist.
 
 The notebooks can be opened directly on github. To render them as slides [https://github.com/damianavila/RISE](RISE) is needed. Otherwise also a simple `jupyter nbconvert --to slides Lecture1.ipynb --post serve` works, even if the style is not optimized.
+
+If you have problems with the rendering of equations on github, you can look also at:
+
+   * http://nbviewer.jupyter.org/github/wiso/StatisticsLectures/blob/master/Lecture1.ipynb
+   * http://nbviewer.jupyter.org/github/wiso/StatisticsLectures/blob/master/Lecture2.ipynb
+   * http://nbviewer.jupyter.org/github/wiso/StatisticsLectures/blob/master/Lecture3.ipynb
