@@ -3,7 +3,7 @@ Material for statistics lectures for physicist.
 
 The notebooks can be opened directly on github. To render them as slides [https://github.com/damianavila/RISE](RISE) is needed. Otherwise also a simple `jupyter nbconvert --to slides Lecture1.ipynb --post serve` works, even if the style is not optimized.
 
-To install jupyter and other software the easier way is to create a [http://python-guide-pt-br.readthedocs.io/en/latest/dev/virtualenvs/](virtualenv). virtualenv can be installed with yum, dnf, apt, ... or also with pip
+To install jupyter and other software the easier way is to create a [http://python-guide-pt-br.readthedocs.io/en/latest/dev/virtualenvs/](virtualenv). virtualenv can be installed with yum, dnf, apt, ... or also with pip. Otherwise you can install the software as root (`sudo pip install ...`) or just for your user (`pip install --user ...`)
 
     virtualenv myenv
     source myenv/bin/activate
