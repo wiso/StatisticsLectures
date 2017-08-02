@@ -1,6 +1,6 @@
 import ROOT
 
-def create_example(ws_name='ws', nb=100, ns=30, sigma_nb=0.2):
+def create_example(ws_name='ws', nb=100, ns=30, sigma_nb=0.1):
     """
     nb = number of expected background
     ns = number of expected signal (under signal hypothesis)
@@ -12,7 +12,7 @@ def create_example(ws_name='ws', nb=100, ns=30, sigma_nb=0.2):
     ws.factory('nb_expected[%d]' % nb)
     ws.factory('sigma_nb[%f]' % sigma_nb)
     ws.factory('theta_nb[0, -5, 5]')
-    ws.factory('expr::nb("@0 * (1 + @1 * @2)", {ns, sigma_nb, theta_nb})')
+    ws.factory('expr::nb("@0 * (1 + @1 * @2)", {nb_expected, sigma_nb, theta_nb})')
     ws.factory('sum::nexp(ns, nb)')
     ws.factory('Poisson::pdf_phys(nobs, nexp)')
     ws.factory('Gaussian::constr_nb(global_nb[0, -5, 5], theta_nb, 1)')
@@ -51,5 +51,5 @@ if __name__ == "__main__":
 
 """
 ROOT.gROOT.ProcessLine(".L StandardHypoTestInvDemo.C")
-ROOT.StandardHypoTestInvDemo('example.root', 'example', 'model_config', 'bmodel', 'data_toy_nosignal', 2, 3, True, 20, 0.1, 10)
+ROOT.StandardHypoTestInvDemo('simple_counting_example.root', 'ws', 'model_config', 'bmodel', 'data_toy_nosignal', 2, 3, True, 20, 0.1, 100)
 """
