@@ -1,0 +1,53 @@
+\documentclass{article}
+
+\usepackage{amsmath}
+
+\begin{document}
+
+Cumulative (CDF): $F_X(x) = P(X\leq x) = \int_{-\infty}^x f_X(t)\,dt$\\
+PDF: $f_X(x) = \frac{dF}{dx}(x)$ \\
+Survival function: $SF_X(x) = P(X>x) = \int_x^\infty f_X(t)\, dt = 1 - F_X(x)$
+
+
+\[
+  \text{p-value}(H) = \int_{\{q:\text{more extreme than } q_\text{obs}\}} f_{Q|H}(q)\,dq
+\]
+
+For right-tailed $Q$
+\[
+  \text{p-value}(H) = \int_{q_\text{obs}}^{\infty} f_{Q|H}(q)\, dq = SF_{Q|H}(q_\text{obs})
+\]
+
+One sided:
+\[
+z = F^{-1}_{N(0,1)}(1 - \text{p-value}) = SF^{-1}_{N(0,1)}(\text{p-value})
+\]
+
+\section{Exclusions}
+
+\begin{equation*}
+q_\mu = \begin{cases}
+  -2\log \dfrac{L(\mu)}{L(0)} & \hat{\mu} < 0 \\
+  -2\log \dfrac{L(\mu)}{L(\hat{\mu})} & 0\leq \hat\mu < \mu \\
+  0 & \hat\mu > \mu
+  \end{cases}\quad\text{and nuisances profiled}
+\end{equation*}
+
+
+\[
+p_{s+b} = \text{p-value}(\mu) = \int_{q_\text{obs}}^\infty f_Q(q | \mu)\,dq
+\]
+
+\[
+p_b = \text{p-value}(\mu=0) = \int_{q_\text{obs}}^\infty f_Q(q | \mu=0)\,dq
+\]
+
+\[
+CL_s = \frac{CL_{s+b}}{CL_{b}} = \frac{p_{s+b}}{1 - p_b}
+\]
+
+\[
+\mu_{95}^\text{sup} = \inf\{\mu:CL_s(\mu) < 0.05\}
+\]
+
+\end{document}
