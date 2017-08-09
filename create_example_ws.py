@@ -1,6 +1,31 @@
 import ROOT
 
-def create_example(ws_name='ws', nb=100, ns=30, sigma_nb=0.1):
+
+def safe_factory(func):
+    def wrapper(self, *args):
+        result = func(self, *args)
+        if not result:
+            raise ValueError('invalid factory input "%s"' % args)
+        return result
+    return wrapper
+
+ROOT.RooWorkspace.factory = safe_factory(ROOT.RooWorkspace.factory)
+
+def safe_decorator(func):
+    def wrapper(self, *args):
+        result = func(self, *args)
+        if not result:
+            raise ValueError('cannot find %s' % args[0])
+        return result
+    return wrapper
+
+ROOT.RooWorkspace.data = safe_decorator(ROOT.RooWorkspace.data)
+ROOT.RooWorkspace.obj = safe_decorator(ROOT.RooWorkspace.obj)
+ROOT.RooWorkspace.var = safe_decorator(ROOT.RooWorkspace.var)
+ROOT.RooWorkspace.pdf = safe_decorator(ROOT.RooWorkspace.pdf)
+
+
+def create_example_counting_oneregion_uncertainty(ws_name='ws', nb=100, ns=30, sigma_nb=0.1):
     """
     nb = number of expected background
     ns = number of expected signal (under signal hypothesis)
@@ -44,10 +69,63 @@ def create_example(ws_name='ws', nb=100, ns=30, sigma_nb=0.1):
     return ws
 
 
+def create_example_onoff(ws_name='ws', nb=9, ns=6, tau=1):
+    """
+    nb = number of expected background in the signal region
+    ns = number of expected signal (under signal hypothesis)
+    tau = scale factor for the background in the control-region
+          (nb in the control-region: nb * tau)
+    """
+    ws = ROOT.RooWorkspace(ws_name)
+    ws.factory('ns[%d, 0, %d]' % (ns, ns * 100))
+    ws.factory('nb_sr[%d, 0, %d]' % (nb, nb * 100))
+    ws.factory('nobs_sr[0, %d]' % ((nb + ns) * 100))
+    ws.factory('nobs_cr[0, %d]' % (nb * tau * 100))
+    ws.factory('sum::nexp_sr(ns, nb_sr)')
+    ws.factory('Poisson::pdf_sr(nobs_sr, nexp_sr)')
+    ws.factory('prod:nb_cr(tau[%f], nb_sr)' % tau)
+    ws.factory('Poisson::pdf_cr(nobs_cr, nb_cr)')
+    ws.factory('PROD:pdf(pdf_sr, pdf_cr)')
+
+    model_config = ROOT.RooStats.ModelConfig('model_config', ws)
+    model_config.SetParametersOfInterest('ns')
+    model_config.SetPdf('pdf')
+    model_config.SetNuisanceParameters('nb_sr')
+    model_config.SetObservables('nobs_sr,nobs_cr')
+    model_config.SetSnapshot(ROOT.RooArgSet(ws.var('ns')))
+
+    data_toy_signal = ws.pdf('pdf').generate(model_config.GetObservables(), 1)
+    data_toy_signal.SetName('data_toy_signal')
+
+    ws.var('ns').setVal(0)
+    data_toy_nosignal = ws.pdf('pdf').generate(model_config.GetObservables(), 1)
+    data_toy_nosignal.SetName('data_toy_nosignal')
+
+    bmodel = model_config.Clone('bmodel')
+    bmodel.SetSnapshot(ROOT.RooArgSet(ws.var('ns')))
+
+    getattr(ws, 'import')(model_config)
+    getattr(ws, 'import')(bmodel)
+    getattr(ws, 'import')(data_toy_signal)
+    getattr(ws, 'import')(data_toy_nosignal)
+
+    return ws
+
+
+
+
+
+
 if __name__ == "__main__":
-    ws = create_example()
+    example = 'onoff'
+    if example == 'onoff':
+        ws = create_example_onoff()
+        ws.writeToFile('ws_onoff.root')
+    else:
+        ws = create_example_counting_oneregion_uncertainty
+        ws.writeToFile('simple_counting_example.root')
     ws.Print()
-    ws.writeToFile('simple_counting_example.root')
+
 
 """
 ROOT.gROOT.ProcessLine(".L StandardHypoTestInvDemo.C")
