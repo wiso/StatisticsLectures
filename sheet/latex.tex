@@ -23,10 +23,31 @@ One sided:
 z = F^{-1}_{N(0,1)}(1 - \text{p-value}) = SF^{-1}_{N(0,1)}(\text{p-value})
 \]
 
-\section{Exclusions}
+\section{Discovery}
+
+\begin{equation*}
+q_0 = \begin{cases}
+  -2\log \dfrac{L(0)}{L(\hat{\mu})} & \hat{\mu} \geq 0 \\
+  0 & \hat{\mu} < 0
+  \end{cases}\quad\text{and nuisances profiled}
+\end{equation*}
+
+\[
+q_0|\mu=0 \sim \frac{1}{2}\delta + \chi^2_1
+\]
+
+\section{Upper limits}
 
 \begin{equation*}
 q_\mu = \begin{cases}
+  -2\log \dfrac{L(\mu)}{L(\hat{\mu})} & \hat\mu \leq \mu \\
+  0 & \hat\mu > \mu
+  \end{cases}\quad\text{and nuisances profiled}
+\end{equation*}
+
+
+\begin{equation*}
+\tilde{q}_\mu = \begin{cases}
   -2\log \dfrac{L(\mu)}{L(0)} & \hat{\mu} < 0 \\
   -2\log \dfrac{L(\mu)}{L(\hat{\mu})} & 0\leq \hat\mu < \mu \\
   0 & \hat\mu > \mu
