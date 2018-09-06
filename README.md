@@ -5,6 +5,7 @@ The notebooks (files with extension .ipynb) can be opened directly on github. To
 
 To install jupyter and other software the easier way is to create a [virtualenv](http://python-guide-pt-br.readthedocs.io/en/latest/dev/virtualenvs). virtualenv can be installed with yum, dnf, apt, ... or also with pip.  Otherwise you can install the software as root (`sudo pip install ...`) or just for your user (`pip install --user ...`)
 
+    # install virtualenv, python2, pip
     virtualenv myenv
     source myenv/bin/activate
     pip install jupyter matplotlib numpy scipy
@@ -12,3 +13,7 @@ To install jupyter and other software the easier way is to create a [virtualenv]
 Then everytime you need to setup the environment you should just do
 
     source myenv/bin/activate
+
+To open a notebook
+
+    jupyter notebook Lecture1.ipynb
