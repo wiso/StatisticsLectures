@@ -2,5 +2,6 @@ jupyter
 matplotlib
 numpy
 scipy
+pandas
 jupyter_contrib_nbextensions
 RISE
