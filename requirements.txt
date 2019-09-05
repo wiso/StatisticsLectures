@@ -1,0 +1,6 @@
+jupyter
+matplotlib
+numpy
+scipy
+jupyter_contrib_nbextensions
+RISE
