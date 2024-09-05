@@ -4,4 +4,5 @@ numpy
 scipy
 pandas
 jupyter_contrib_nbextensions
-RISE
+jupyterlab_rise
+
