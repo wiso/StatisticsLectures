@@ -1,0 +1,135 @@
+name: notebooks
+
+# Esegue i notebook e fallisce se una cella dà errore.
+# Di default viene rieseguito solo il notebook modificato dal push / dalla PR.
+# L'ambiente è quello di environment.yml (micromamba), lo stesso usato in locale.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      notebooks:
+        description: "Notebook da eseguire (vuoto = tutti), separati da spazi"
+        type: string
+        default: ""
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  select:
+    name: scegli i notebook
+    runs-on: ubuntu-latest
+    outputs:
+      notebooks: ${{ steps.pick.outputs.notebooks }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # serve la storia per fare il diff
+
+      - id: pick
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+          REQUESTED: ${{ inputs.notebooks }}
+        run: |
+          set -euo pipefail
+
+          all_notebooks() { git ls-files 'Lecture*.ipynb'; }
+
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            if [ -n "$REQUESTED" ]; then
+              selected="$REQUESTED"
+            else
+              selected=$(all_notebooks)
+            fi
+          else
+            if [ "$EVENT" = "pull_request" ]; then
+              base="$PR_BASE"; head="$PR_HEAD"
+            else
+              base="$PUSH_BEFORE"; head="$PUSH_AFTER"
+            fi
+
+            # primo push di un branch, force push o commit iniziale: niente base utilizzabile
+            if ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+              echo "base '$base' non disponibile: eseguo tutti i notebook"
+              selected=$(all_notebooks)
+            else
+              changed=$(git diff --name-only "$base" "$head")
+              echo "File modificati:"; echo "$changed" | sed 's/^/  /'
+
+              # se cambia l'ambiente, un file di input o il workflow stesso,
+              # il risultato di tutti i notebook può cambiare
+              if echo "$changed" | grep -qE '^(environment\.yml|\.github/workflows/notebooks\.yml|custom\.css|.*\.(root|C|py))$'; then
+                echo "Modificato l'ambiente o un file di input: eseguo tutti i notebook"
+                selected=$(all_notebooks)
+              else
+                selected=$(echo "$changed" | grep -E '^Lecture[0-9]+\.ipynb$' || true)
+                # Lecture3 legge onoff.root, prodotto da Lecture2: se cambia la 2
+                # rieseguo anche la 3 (il file è comunque versionato).
+                if echo "$selected" | grep -q '^Lecture2\.ipynb$'; then
+                  selected=$(printf '%s\nLecture3.ipynb\n' "$selected")
+                fi
+              fi
+            fi
+          fi
+
+          selected=$(printf '%s\n' $selected | sort -u | sed '/^$/d')
+          if [ -z "$selected" ]; then
+            echo "Nessun notebook da eseguire"
+            echo 'notebooks=[]' >> "$GITHUB_OUTPUT"
+          else
+            echo "Notebook selezionati:"; echo "$selected" | sed 's/^/  /'
+            json=$(printf '%s\n' "$selected" | jq -R . | jq -sc .)
+            echo "notebooks=$json" >> "$GITHUB_OUTPUT"
+          fi
+
+  run:
+    name: ${{ matrix.notebook }}
+    needs: select
+    if: needs.select.outputs.notebooks != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        notebook: ${{ fromJSON(needs.select.outputs.notebooks) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: environment.yml
+          cache-environment: true
+
+      - name: versioni
+        shell: bash -el {0}
+        run: |
+          python -c "import ROOT, numpy, scipy, matplotlib, pandas, ipywidgets; print('ROOT', ROOT.__version__)"
+          jupyter nbconvert --version   # arriva da nbconvert-core, dipendenza di jupyterlab
+          dot -V                        # graphviz, usato dalle celle graphVizTree
+
+      - name: esegui ${{ matrix.notebook }}
+        shell: bash -el {0}
+        env:
+          MPLBACKEND: Agg   # ROOT usa la modalità batch da sé, senza DISPLAY
+        run: |
+          jupyter nbconvert --to notebook --execute \
+            --ExecutePreprocessor.timeout=3600 \
+            --output-dir executed --output "${{ matrix.notebook }}" \
+            "${{ matrix.notebook }}"
+
+      - name: carica il notebook eseguito
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: executed-${{ matrix.notebook }}
+          path: executed/
+          if-no-files-found: ignore
