@@ -13,6 +13,7 @@ dependencies:
   - pandas
   - matplotlib
   - sympy
+  - tqdm
   - ipykernel
   - ipywidgets
   - jupyterlab>=4.2

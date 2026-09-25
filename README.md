@@ -22,6 +22,7 @@ Then every time you need the environment:
 
 To update the environment after changing `environment.yml`, recreate it (this also applies the `variables:` section, which `micromamba env update` ignores) and regenerate the lock file:
 
+    micromamba deactivate  # if the environment is active
     micromamba env remove -n statisticslectures
     micromamba env create -f environment.yml
     micromamba env export -n statisticslectures --explicit --md5 > environment.lock.txt
