@@ -83,7 +83,7 @@ jobs:
           # same job, in this order, so that Lecture3 really consumes the file
           # just produced instead of the committed one.
           groups=""
-          if echo "$selected" | grep -q '^Lecture2\.ipynb$'; then
+          if echo "$selected" | grep -q '^Lecture2\.ipynb$' && [ -f Lecture3.ipynb ]; then
             groups="Lecture2.ipynb Lecture3.ipynb"
             selected=$(echo "$selected" | grep -vE '^Lecture(2|3)\.ipynb$' || true)
           fi

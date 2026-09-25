@@ -15,7 +15,6 @@ from pathlib import Path
 
 import nbformat
 from nbclient import NotebookClient
-from nbclient.exceptions import CellExecutionError, DeadKernelError
 
 
 def main() -> int:
@@ -43,10 +42,14 @@ def main() -> int:
         on_cell_start=on_cell_start,
     )
 
+    aborted = False
     crashed_at = None
     try:
         client.execute()
-    except (DeadKernelError, CellExecutionError, RuntimeError) as exc:
+    except Exception as exc:  # noqa: BLE001 - whatever goes wrong, report it
+        aborted = True
+        # may stay None: execution can fail before the first cell starts, for
+        # instance when the kernel cannot be launched at all
         crashed_at = running.get("index")
         print(f"\nExecution aborted: {type(exc).__name__}: {exc}", flush=True)
     finally:
@@ -82,10 +85,11 @@ def main() -> int:
                             print("      ...")
             print(f"    {out['ename']}: {out['evalue']}")
 
-    if crashed_at is not None:
-        print(f"\nThe kernel died while running cell {crashed_at}.", flush=True)
+    if aborted:
+        where = f"while running cell {crashed_at}" if crashed_at is not None else "before the first cell"
+        print(f"\nExecution of {args.notebook} was aborted {where}.", flush=True)
 
-    if failures or crashed_at is not None:
+    if failures or aborted:
         return 1
     print(f"\n{args.notebook}: all cells executed without errors", flush=True)
     return 0
