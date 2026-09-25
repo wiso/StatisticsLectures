@@ -1,4 +1,7 @@
 # StatisticsLectures
+
+[![notebooks](https://github.com/wiso/StatisticsLectures/actions/workflows/notebooks.yml/badge.svg)](https://github.com/wiso/StatisticsLectures/actions/workflows/notebooks.yml)
+
 Material for statistics lectures for physicists.
 
 The notebooks (files with extension .ipynb) can be opened directly on github. To render them as slides [RISE](https://github.com/jupyterlab-contrib/rise) (`jupyterlab_rise`) is used.

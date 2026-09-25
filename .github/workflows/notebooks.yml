@@ -1,0 +1,169 @@
+name: notebooks
+
+# Execute the notebooks and fail if any cell raises.
+# By default only the notebooks changed by the push / pull request are re-executed.
+# The environment is the one in environment.yml (micromamba), the same used locally.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      notebooks:
+        description: "Notebooks to execute (empty = all), space separated"
+        type: string
+        default: ""
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  select:
+    name: select notebooks
+    runs-on: ubuntu-latest
+    outputs:
+      groups: ${{ steps.pick.outputs.groups }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the diff needs the history
+
+      - id: pick
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+          REQUESTED: ${{ inputs.notebooks }}
+        run: |
+          set -euo pipefail
+
+          all_notebooks() { git ls-files 'Lecture*.ipynb'; }
+
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            if [ -n "$REQUESTED" ]; then
+              selected="$REQUESTED"
+            else
+              selected=$(all_notebooks)
+            fi
+          else
+            if [ "$EVENT" = "pull_request" ]; then
+              base="$PR_BASE"; head="$PR_HEAD"
+            else
+              base="$PUSH_BEFORE"; head="$PUSH_AFTER"
+            fi
+
+            # first push of a branch, force push or initial commit: no usable base
+            if ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+              echo "base '$base' not available: executing all notebooks"
+              selected=$(all_notebooks)
+            else
+              changed=$(git diff --name-only --diff-filter=d "$base" "$head")
+              echo "Changed files:"; echo "$changed" | sed 's/^/  /'
+
+              # a change in the environment, in an input file or in the CI itself
+              # can change the result of every notebook
+              if echo "$changed" | grep -qE '^(environment\.yml|ci/.*|\.github/workflows/notebooks\.yml|custom\.css|.*\.(root|C|py))$'; then
+                echo "Environment, CI or input file changed: executing all notebooks"
+                selected=$(all_notebooks)
+              else
+                selected=$(echo "$changed" | grep -E '^Lecture[0-9]+\.ipynb$' || true)
+              fi
+            fi
+          fi
+
+          # drop notebooks that no longer exist at this revision (deleted or renamed)
+          selected=$(for nb in $selected; do if [ -f "$nb" ]; then echo "$nb"; fi; done | sort -u)
+
+          # Lecture3 reads onoff.root, which Lecture2 writes. Run the two in the
+          # same job, in this order, so that Lecture3 really consumes the file
+          # just produced instead of the committed one.
+          groups=""
+          if echo "$selected" | grep -q '^Lecture2\.ipynb$' && [ -f Lecture3.ipynb ]; then
+            groups="Lecture2.ipynb Lecture3.ipynb"
+            selected=$(echo "$selected" | grep -vE '^Lecture(2|3)\.ipynb$' || true)
+          fi
+          for nb in $selected; do
+            groups=$(printf '%s\n%s' "$groups" "$nb")
+          done
+          groups=$(printf '%s\n' "$groups" | sed '/^$/d')
+
+          if [ -z "$groups" ]; then
+            echo "No notebook to execute"
+            echo 'groups=[]' >> "$GITHUB_OUTPUT"
+          else
+            echo "Notebooks to execute (one job per line):"; echo "$groups" | sed 's/^/  /'
+            json=$(printf '%s\n' "$groups" | jq -R . | jq -sc .)
+            echo "groups=$json" >> "$GITHUB_OUTPUT"
+          fi
+
+  run:
+    name: ${{ matrix.group }}
+    needs: select
+    if: needs.select.outputs.groups != '[]'
+    runs-on: ubuntu-latest
+    # The jobs take about 1.5 minutes with a warm environment cache and a few
+    # minutes without it; the slowest single cell measured is ~13 s. 30 minutes
+    # leaves plenty of room while still catching a hang early.
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        group: ${{ fromJSON(needs.select.outputs.groups) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: environment.yml
+          cache-environment: true
+
+      # Note: these steps deliberately avoid a login shell (`bash -el`). A login
+      # shell runs ~/.bash_logout on exit, which on the runners calls
+      # clear_console; without a tty that fails and replaces the exit status of
+      # a script ending in `exit N`, turning a green run into a red one.
+      # `micromamba run` activates the environment without needing one.
+      - name: versions
+        shell: bash {0}
+        run: |
+          set -e
+          run() { "${MAMBA_EXE:-micromamba}" run -n statisticslectures "$@"; }
+          run python -c "import ROOT, numpy, scipy, matplotlib, pandas, ipywidgets; print('ROOT', ROOT.__version__)"
+          run python -c "import nbclient; print('nbclient', nbclient.__version__)"
+          run dot -V   # graphviz, used by the graphVizTree cells
+
+      - id: names
+        shell: bash
+        env:
+          GROUP: ${{ matrix.group }}
+        run: echo "slug=$(echo "$GROUP" | tr ' ' '_')" >> "$GITHUB_OUTPUT"
+
+      - name: execute ${{ matrix.group }}
+        shell: bash {0}
+        env:
+          GROUP: ${{ matrix.group }}
+          MPLBACKEND: Agg   # ROOT falls back to batch mode by itself, no DISPLAY needed
+        run: |
+          status=0
+          for notebook in $GROUP; do
+            # keep going, so that a failure in the first notebook still leaves
+            # an artifact for the others
+            "${MAMBA_EXE:-micromamba}" run -n statisticslectures \
+              python ci/execute_notebook.py "$notebook" \
+              --output "executed/$notebook" --timeout 600 && rc=0 || rc=$?
+            echo "::notice::$notebook exited with code $rc"
+            if [ "$rc" -ne 0 ]; then status=1; fi
+          done
+          exit $status
+
+      - name: upload executed notebooks
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: executed-${{ steps.names.outputs.slug }}
+          path: executed/
+          if-no-files-found: warn
