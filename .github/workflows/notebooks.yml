@@ -106,7 +106,10 @@ jobs:
     needs: select
     if: needs.select.outputs.groups != '[]'
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    # The jobs take about 1.5 minutes with a warm environment cache and a few
+    # minutes without it; the slowest single cell measured is ~13 s. 30 minutes
+    # leaves plenty of room while still catching a hang early.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -151,7 +154,7 @@ jobs:
             # an artifact for the others
             "${MAMBA_EXE:-micromamba}" run -n statisticslectures \
               python ci/execute_notebook.py "$notebook" \
-              --output "executed/$notebook" --timeout 3600 && rc=0 || rc=$?
+              --output "executed/$notebook" --timeout 600 && rc=0 || rc=$?
             echo "::notice::$notebook exited with code $rc"
             if [ "$rc" -ne 0 ]; then status=1; fi
           done
