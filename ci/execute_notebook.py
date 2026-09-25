@@ -9,6 +9,7 @@ an artifact) and prints which cell was running when the kernel died.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -79,4 +80,11 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    code = main()
+    # The notebook has already been written at this point. Leave immediately:
+    # tearing down the kernel machinery can crash the interpreter (ROOT is
+    # loaded in the kernel and its shutdown is not always clean), which would
+    # turn a successful run into a failing one.
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(code)

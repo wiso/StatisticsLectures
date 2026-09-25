@@ -143,7 +143,9 @@ jobs:
             # keep going, so that a failure in the first notebook still leaves
             # an artifact for the others
             python ci/execute_notebook.py "$notebook" \
-              --output "executed/$notebook" --timeout 3600 || status=1
+              --output "executed/$notebook" --timeout 3600 && rc=0 || rc=$?
+            echo "::notice::$notebook exited with code $rc"
+            if [ "$rc" -ne 0 ]; then status=1; fi
           done
           exit $status
 
