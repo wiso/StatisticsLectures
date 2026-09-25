@@ -62,12 +62,24 @@ def main() -> int:
     if failures:
         print(f"\n{len(failures)} cell(s) failed in {args.notebook}:", flush=True)
         for index, out in failures:
-            source = "".join(notebook.cells[index]["source"]).strip().splitlines()
+            cell = notebook.cells[index]
+            source = "".join(cell["source"]).strip().splitlines()
             print(f"\n--- cell {index} ---")
             for line in source[:10]:
                 print(f"    {line}")
             if len(source) > 10:
                 print("    ...")
+            # what the cell wrote on stderr often holds the real cause, for
+            # instance the compiler errors behind a failed ROOT.gROOT.LoadMacro
+            for other in cell.get("outputs", []):
+                if other.get("output_type") == "stream" and other.get("name") == "stderr":
+                    text = "".join(other["text"]).strip().splitlines()
+                    if text:
+                        print("    stderr:")
+                        for line in text[:20]:
+                            print(f"      {line}")
+                        if len(text) > 20:
+                            print("      ...")
             print(f"    {out['ename']}: {out['evalue']}")
 
     if crashed_at is not None:
