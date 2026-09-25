@@ -1,8 +1,14 @@
-jupyter
-matplotlib
+# Simplified setup with virtualenv/pip, WITHOUT ROOT.
+# Cells that use ROOT/RooFit/RooStats will fail; `!dot` cells need the system
+# graphviz package (e.g. `sudo dnf install graphviz` / `sudo apt install graphviz`).
+# The recommended environment is environment.yml (micromamba), see README.md.
+jupyterlab>=4.2
+notebook>=7
+jupyterlab_rise
+ipykernel
+ipywidgets
 numpy
 scipy
 pandas
-jupyter_contrib_nbextensions
-jupyterlab_rise
-
+matplotlib
+sympy
