@@ -1,8 +1,8 @@
 name: notebooks
 
-# Esegue i notebook e fallisce se una cella dà errore.
-# Di default viene rieseguito solo il notebook modificato dal push / dalla PR.
-# L'ambiente è quello di environment.yml (micromamba), lo stesso usato in locale.
+# Execute the notebooks and fail if any cell raises.
+# By default only the notebooks changed by the push / pull request are re-executed.
+# The environment is the one in environment.yml (micromamba), the same used locally.
 
 on:
   push:
@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       notebooks:
-        description: "Notebook da eseguire (vuoto = tutti), separati da spazi"
+        description: "Notebooks to execute (empty = all), space separated"
         type: string
         default: ""
 
@@ -21,14 +21,14 @@ concurrency:
 
 jobs:
   select:
-    name: scegli i notebook
+    name: select notebooks
     runs-on: ubuntu-latest
     outputs:
       notebooks: ${{ steps.pick.outputs.notebooks }}
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # serve la storia per fare il diff
+          fetch-depth: 0   # the diff needs the history
 
       - id: pick
         shell: bash
@@ -57,23 +57,23 @@ jobs:
               base="$PUSH_BEFORE"; head="$PUSH_AFTER"
             fi
 
-            # primo push di un branch, force push o commit iniziale: niente base utilizzabile
+            # first push of a branch, force push or initial commit: no usable base
             if ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
-              echo "base '$base' non disponibile: eseguo tutti i notebook"
+              echo "base '$base' not available: executing all notebooks"
               selected=$(all_notebooks)
             else
               changed=$(git diff --name-only "$base" "$head")
-              echo "File modificati:"; echo "$changed" | sed 's/^/  /'
+              echo "Changed files:"; echo "$changed" | sed 's/^/  /'
 
-              # se cambia l'ambiente, un file di input o il workflow stesso,
-              # il risultato di tutti i notebook può cambiare
-              if echo "$changed" | grep -qE '^(environment\.yml|\.github/workflows/notebooks\.yml|custom\.css|.*\.(root|C|py))$'; then
-                echo "Modificato l'ambiente o un file di input: eseguo tutti i notebook"
+              # a change in the environment, in an input file or in the CI itself
+              # can change the result of every notebook
+              if echo "$changed" | grep -qE '^(environment\.yml|ci/.*|\.github/workflows/notebooks\.yml|custom\.css|.*\.(root|C|py))$'; then
+                echo "Environment, CI or input file changed: executing all notebooks"
                 selected=$(all_notebooks)
               else
                 selected=$(echo "$changed" | grep -E '^Lecture[0-9]+\.ipynb$' || true)
-                # Lecture3 legge onoff.root, prodotto da Lecture2: se cambia la 2
-                # rieseguo anche la 3 (il file è comunque versionato).
+                # Lecture3 reads onoff.root, which Lecture2 writes: if Lecture2
+                # changes, execute Lecture3 as well (the file is versioned anyway).
                 if echo "$selected" | grep -q '^Lecture2\.ipynb$'; then
                   selected=$(printf '%s\nLecture3.ipynb\n' "$selected")
                 fi
@@ -83,10 +83,10 @@ jobs:
 
           selected=$(printf '%s\n' $selected | sort -u | sed '/^$/d')
           if [ -z "$selected" ]; then
-            echo "Nessun notebook da eseguire"
+            echo "No notebook to execute"
             echo 'notebooks=[]' >> "$GITHUB_OUTPUT"
           else
-            echo "Notebook selezionati:"; echo "$selected" | sed 's/^/  /'
+            echo "Selected notebooks:"; echo "$selected" | sed 's/^/  /'
             json=$(printf '%s\n' "$selected" | jq -R . | jq -sc .)
             echo "notebooks=$json" >> "$GITHUB_OUTPUT"
           fi
@@ -109,27 +109,25 @@ jobs:
           environment-file: environment.yml
           cache-environment: true
 
-      - name: versioni
+      - name: versions
         shell: bash -el {0}
         run: |
           python -c "import ROOT, numpy, scipy, matplotlib, pandas, ipywidgets; print('ROOT', ROOT.__version__)"
-          jupyter nbconvert --version   # arriva da nbconvert-core, dipendenza di jupyterlab
-          dot -V                        # graphviz, usato dalle celle graphVizTree
+          python -c "import nbclient, nbformat; print('nbclient', nbclient.__version__)"
+          dot -V   # graphviz, used by the graphVizTree cells
 
-      - name: esegui ${{ matrix.notebook }}
+      - name: execute ${{ matrix.notebook }}
         shell: bash -el {0}
         env:
-          MPLBACKEND: Agg   # ROOT usa la modalità batch da sé, senza DISPLAY
+          MPLBACKEND: Agg   # ROOT falls back to batch mode by itself, no DISPLAY needed
         run: |
-          jupyter nbconvert --to notebook --execute \
-            --ExecutePreprocessor.timeout=3600 \
-            --output-dir executed --output "${{ matrix.notebook }}" \
-            "${{ matrix.notebook }}"
+          python ci/execute_notebook.py "${{ matrix.notebook }}" \
+            --output "executed/${{ matrix.notebook }}" --timeout 3600
 
-      - name: carica il notebook eseguito
+      - name: upload executed notebook
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: executed-${{ matrix.notebook }}
           path: executed/
-          if-no-files-found: ignore
+          if-no-files-found: warn
