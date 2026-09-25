@@ -119,12 +119,19 @@ jobs:
           environment-file: environment.yml
           cache-environment: true
 
+      # Note: these steps deliberately avoid a login shell (`bash -el`). A login
+      # shell runs ~/.bash_logout on exit, which on the runners calls
+      # clear_console; without a tty that fails and replaces the exit status of
+      # a script ending in `exit N`, turning a green run into a red one.
+      # `micromamba run` activates the environment without needing one.
       - name: versions
-        shell: bash -el {0}
+        shell: bash {0}
         run: |
-          python -c "import ROOT, numpy, scipy, matplotlib, pandas, ipywidgets; print('ROOT', ROOT.__version__)"
-          python -c "import nbclient, nbformat; print('nbclient', nbclient.__version__)"
-          dot -V   # graphviz, used by the graphVizTree cells
+          set -e
+          run() { "${MAMBA_EXE:-micromamba}" run -n statisticslectures "$@"; }
+          run python -c "import ROOT, numpy, scipy, matplotlib, pandas, ipywidgets; print('ROOT', ROOT.__version__)"
+          run python -c "import nbclient; print('nbclient', nbclient.__version__)"
+          run dot -V   # graphviz, used by the graphVizTree cells
 
       - id: names
         shell: bash
@@ -133,7 +140,7 @@ jobs:
         run: echo "slug=$(echo "$GROUP" | tr ' ' '_')" >> "$GITHUB_OUTPUT"
 
       - name: execute ${{ matrix.group }}
-        shell: bash -el {0}
+        shell: bash {0}
         env:
           GROUP: ${{ matrix.group }}
           MPLBACKEND: Agg   # ROOT falls back to batch mode by itself, no DISPLAY needed
@@ -142,7 +149,8 @@ jobs:
           for notebook in $GROUP; do
             # keep going, so that a failure in the first notebook still leaves
             # an artifact for the others
-            python ci/execute_notebook.py "$notebook" \
+            "${MAMBA_EXE:-micromamba}" run -n statisticslectures \
+              python ci/execute_notebook.py "$notebook" \
               --output "executed/$notebook" --timeout 3600 && rc=0 || rc=$?
             echo "::notice::$notebook exited with code $rc"
             if [ "$rc" -ne 0 ]; then status=1; fi
